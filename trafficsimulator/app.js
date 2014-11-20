@@ -11,7 +11,7 @@
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
- *   Bryan Boyd - Initial implementation 
+ *   Bryan Boyd - Initial implementation
  *******************************************************************************/
 
 var parseString = require('xml2js').parseString;
@@ -51,7 +51,7 @@ var telemetryTopic = "iot-2/evt/telemetry/fmt/json";
 
 
 //////////////////
-//      MAP     // 
+//      MAP     //
 //////////////////
 var num_nodes = 0;
 var num_edges = 0;
@@ -99,7 +99,7 @@ Map.prototype.createMapFromJSON = function(json) {
 	for (var i in json.osm.way) {
 		var w = json.osm.way[i];
 		var wId = w.$.id;
-		
+
 		var tags = {};
 		for (var j in w.tag) {
 			tags[w.tag[j].$.k] = w.tag[j].$.v;
@@ -185,14 +185,14 @@ Map.prototype.print = function() {
 		} else {
 			console.log("nodes saved to map_nodes.txt");
 		}
-	}); 
+	});
 	fs.writeFile("map_edges.txt", JSON.stringify(this.edges, null, 4), function(err) {
 		if(err) {
 			console.log(err);
 		} else {
 			console.log("edges saved to map_edges.txt");
 		}
-	}); 
+	});
 	*/
 	console.log("loaded map!");
 	console.log("num_edges = " + this.edgeCount);
@@ -227,7 +227,8 @@ function Vehicle(id, suffix) {
 	this.name = "Car " + id + suffix;
 	this.map = austin_map;
 	this.speed = null;
-    this.tireP = null;
+  this.tireP = null;
+  this.timeOfEvent = null;
 	this.state = "normal";
 	this.description = "I am a connected car.";
 	this.type = "car";
@@ -243,8 +244,8 @@ function Vehicle(id, suffix) {
 	this.currentEdge = null;
 	this.perc = 0;  // % of edge travelled
 	this.lastUpdateTime = null;
-	this.setTireP(Math.floor(Math.random() * 100) + 0);
-	this.setSpeed(Math.floor(Math.random() * 50) + 1);
+	this.setTireP(35);
+	this.setSpeed(30);
 	this.frame = 0;
 }
 Vehicle.prototype.drive = function() {
@@ -258,8 +259,28 @@ Vehicle.prototype.drive = function() {
 }
 
 Vehicle.prototype.update = function() {
-	var delta = (new Date()).getTime() - this.lastUpdateTime;
+	var currentTime = (new Date()).getTime();
+	var delta = currentTime - this.lastUpdateTime;
 	//console.log("delta = " + delta);
+
+	if (this.timeOfEvent == null || currentTime - this.timeOfEvent > 10000) {
+		var chanceNumber = Math.floor(Math.random() * 400);
+		var flatOccurs = false;
+
+		// .25% chance of flat tire per update (200 ms)
+		if (chanceNumber == 0) {
+			var flatOccurs = true;
+			this.setTireP(0);
+			this.setSpeed(0);
+			this.timeOfEvent = (new Date()).getTime();
+		}
+
+		// reset car after event ends
+		if (this.tireP == 0 && flatOccurs == false) {
+			this.setTireP(35);
+			this.setSpeed(30);
+		}
+	}
 
 	// move car 'delta' milliseconds
 	// speed (m/s) = speed (km/hr) * 3600 / 1000
@@ -281,7 +302,7 @@ Vehicle.prototype.update = function() {
 			//console.log("didn't finish, perc = " + this.perc);
 		}
 	}
-	
+
 	this.updatePosition();
 	this.lastUpdateTime = (new Date()).getTime();
 }
@@ -295,6 +316,7 @@ Vehicle.prototype.getPublishPayload = function() {
 		heading: this.currentEdge.heading,
 		speed: this.speed,
 		tireP: this.tireP,
+		timeOfEvent: this.timeOfEvent,
 		state: this.state,
 		description: this.description,
 		type: this.type,
@@ -337,7 +359,7 @@ Vehicle.prototype.updatePosition = function() {
 		this.geo.lon = a.lon + this.perc * (b.lon - a.lon);
 		this.geo.lat = a.lat + this.perc * (b.lat - a.lat);
 	} else {
-		//console.log("ERROR", a, b); 
+		//console.log("ERROR", a, b);
 		this.setStartingEdge();
 	}
 	//console.log("updatePosition: " + this.geo.lon + ", " + this.geo.lat);
@@ -346,8 +368,8 @@ Vehicle.prototype.updatePosition = function() {
 Vehicle.prototype.setNextEdge = function() {
 	//console.log("  setNextEdge");
 	var n = this.map.nodes[this.currentEdge.b];
-	if (!n) { 
-		// no valid next edge 
+	if (!n) {
+		// no valid next edge
 		//console.log("RESPAWNING");
 		this.setStartingEdge();
 		return;
@@ -355,7 +377,7 @@ Vehicle.prototype.setNextEdge = function() {
 	var edge = null;
 	var reverseCount = 0;
 	while (!edge) {
-		try { 
+		try {
 			var idx = Math.floor(Math.random() * n.edges.length);
 			edge = n.edges[idx];
 
@@ -366,10 +388,10 @@ Vehicle.prototype.setNextEdge = function() {
 					//console.log("End of the line!  Respawning...");
 					this.setStartingEdge();
 					return;
-				} else { 
+				} else {
 					//console.log("edge won't work, it's a reverse!");
 					reverseCount++;
-					if (reverseCount > 10) { 
+					if (reverseCount > 10) {
 						this.setStartingEdge();
 						return;
 					} else {
@@ -377,8 +399,8 @@ Vehicle.prototype.setNextEdge = function() {
 					}
 				}
 			}
-		} catch (e) { 
-			//console.log(e, "ERROR", n, this.currentEdge); 
+		} catch (e) {
+			//console.log(e, "ERROR", n, this.currentEdge);
 			this.setStartingEdge();
 			return;
 		}
@@ -423,10 +445,11 @@ function subscribeToProperties() {
 				switch (prop) {
 					case "speed": v.setSpeed(val); break;
 					case "state": v.state = val; break;
-					case "tireP" : v.setTireP(val);break;
+					case "tireP" : v.setTireP(val); break;
+					case "timeOfEvent" : v.timeOfEvent = val; break;
 					case "description": v.description = val; break;
 					case "type": v.type = val; break;
-					default: 
+					default:
 						if (val == "") {
 							if (v.customProps[prop]) { delete v.customProps[prop]; }
 						} else {
@@ -507,7 +530,7 @@ if (process.env.VCAP_SERVICES) {
 	}
 }
 
-if (geo_props) { 
+if (geo_props) {
 
 	// sample vehicle topic/payload:
 	// {"id":"G-13","name":"Car G-13","lng":-122.41950721920685,"lat":37.76330689770606,"heading":177.06799545408498,"speed":30,"state":"normal","description":"I am a connected car.","type":"car","customProps":{"customProp":"customValue"}}
@@ -516,8 +539,8 @@ if (geo_props) {
 	var notifyClientId = "a:"+settings.iot_deviceOrg + ":geoNotify" + Math.floor(Math.random() * 1000);
 
 	var apis = [
-		{ 
-			name: "start", 
+		{
+			name: "start",
 			path: geo_props.start_path,
 			method: "PUT",
 			json: {
@@ -533,14 +556,14 @@ if (geo_props) {
 				"longitude_attr_name" : "lng"
 			}
 		},
-		{ 
-			name: "stop", 
+		{
+			name: "stop",
 			path: geo_props.stop_path,
 			method: "PUT",
 			json: null
 		},
-		{ 
-			name: "addRegion", 
+		{
+			name: "addRegion",
 			path: geo_props.add_region_path,
 			method: "PUT",
 			json: {  // sample JSON for adding a region
@@ -560,8 +583,8 @@ if (geo_props) {
 				]
 			}
 		},
-		{ 
-			name: "removeRegion", 
+		{
+			name: "removeRegion",
 			path: geo_props.remove_region_path,
 			method: "PUT",
 			json: {  // sample JSON for removing the sample region
@@ -569,14 +592,14 @@ if (geo_props) {
 				"region_name": "custom_poly"
 			}
 		},
-		{ 
-			name: "restart", 
+		{
+			name: "restart",
 			path: geo_props.restart_path,
 			method: "PUT",
 			json: null
 		},
-		{ 
-			name: "status", 
+		{
+			name: "status",
 			path: geo_props.status_path,
 			method: "GET",
 			json: null
@@ -592,7 +615,7 @@ if (geo_props) {
 		app.get(route, (function(api) {
 			return function(request, response) {
 				var route = "/GeospatialService_"+api.name;
-				console.log("About to call " + route);  
+				console.log("About to call " + route);
 
 
 				// prepare options
@@ -621,17 +644,17 @@ if (geo_props) {
 					options.headers['Content-Type'] = 'application/json';
 					options.headers['Content-Length'] = Buffer.byteLength(JSON.stringify(bodyJson), 'utf8');
 				}
-				 
+
 				console.log('Options prepared:', options);
 				console.log('Do the GeospatialService_' + api.name + ' call');
-				 
+
 				// do the PUT call
 				var reqPut = http.request(options, function(res) {
 
 					// uncomment it for header details
 					console.log("headers: ", res.headers);
 					console.log("statusCode: ", res.statusCode);
-				 
+
 					res.on('data', function(d) {
 						console.log(route + ' result:\n');
 						process.stdout.write(d);

@@ -1,9 +1,9 @@
 applications:
-- host: truck-monitor1
+- host: roadside-rescue
   disk: 128M
-  name: truck-monitor1 
+  name: roadside-rescue
   command: node app.js
   path: .
   domain: mybluemix.net
   memory: 128M
-  instances: 10
+  instances: 3

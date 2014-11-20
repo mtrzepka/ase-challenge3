@@ -11,22 +11,22 @@
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
- *   Bryan Boyd - Initial implementation 
+ *   Bryan Boyd - Initial implementation
  *******************************************************************************/
 
 /*****************************************************************************
- *                            
- *                              MapObjectSet         
+ *
+ *                              MapObjectSet
  *
  *   A set of MapObjects.  Those that inherit this object should implement
  *   the "sub" method, an onMessage callback that is used to populate/update
  *   MapObject's in the set.
- *                            
+ *
  ****************************************************************************/
 function MapObjectSet() {
 	this.objects = {};
 	this.noDeleteOnReset = false;
-	
+
 	var topic = "iot-2/type/"+window.config.iot_deviceType+"/id/+/evt/telemetry/fmt/json";
 	this.sub = new Subscription(topic, (function(ctx) {
 		return function(message) {
@@ -53,6 +53,7 @@ function MapObjectSet() {
 				ctx.objects[data.id].heading = data.heading;
 				ctx.objects[data.id].speed = data.speed;
 				ctx.objects[data.id].tireP = data.tireP;
+				ctx.objects[data.id].timeOfEvent = data.timeOfEvent;
 				ctx.objects[data.id].customProps = data.customProps;
 				ctx.objects[data.id].lastUpdate = (new Date()).getTime();
 			}
@@ -90,11 +91,11 @@ MapObjectSet.prototype.reset = function() {
 
 
 /*****************************************************************************
- *                            
+ *
  *                                MapObject
  *
  *       Base class for all objects that will be displayed on the map.
- *                            
+ *
  ****************************************************************************/
 function MapObject(id) {
 	this.id = id;
@@ -113,6 +114,7 @@ function MapObject(id) {
 	}
 	this.color = "rgba(0,0,0,1.0)";
 	this.description = "I am a connected car";
+	this.activeEvent = false;
 
 	this.overlaySet = new OverlaySet();
 
@@ -125,12 +127,12 @@ function MapObject(id) {
 	//this.setLabel(this.id);
 }
 
-MapObject.prototype.setLocation = function(data) { 
+MapObject.prototype.setLocation = function(data) {
 	this.geo.lon = parseFloat(data.split(",")[0]);
 	this.geo.lat = parseFloat(data.split(",")[1]);
 }
 MapObject.prototype.setType = function(type) { this.type = type; }
-MapObject.prototype.setName = function(name) { 
+MapObject.prototype.setName = function(name) {
 	this.name = name;
 }
 MapObject.prototype.setDescription = function(description) { this.description = description; }
@@ -170,7 +172,7 @@ MapObject.prototype._getMessagesHTML = function() {
 	for (var i in this.messages) {
 		var d = this.messages[i];
 		html += [
-			"<div class='thingMessage' id='msg"+i+"'>", 
+			"<div class='thingMessage' id='msg"+i+"'>",
 				"<div class='thingMessageSubject'><b>" + d.msgSubject + "</b></div>",
 				"<div class='thingMessageDescription'>" + d.msgDescription + "<div class='thingMessageTime'>" + d.dateStr + " " + d.timeStr + "</div></div>",
 				"<div class='thingMessageActions'><a href='javascript:deleteMessage(" + this.id + ", " + i + ")'>Close</a>",
@@ -190,7 +192,7 @@ MapObject.prototype.pushMessage = function(msg) {
 }
 
 MapObject.prototype.getPopoverData = function() {
-	var data = { 
+	var data = {
 		left: {
 			title: "",
 			content: ""
@@ -208,10 +210,11 @@ MapObject.prototype.getPopoverData = function() {
 	var status_description = this.description;
 	var status_state = this.state;
 	var status_type = this.type;
-	
+
 	data.left.content += '<div><b>GPS:</b> <span class="value" id="status_location">'+status_location+'</span></div>';
 	data.left.content += '<div><b>Speed:</b> <span class="value" id="status_speed">'+this.speed+'</span></div>';
 	data.left.content += '<div><b>Tire Pressure:</b> <span class="value" id="status_tireP">'+this.tireP+'</span></div>';
+	data.left.content += '<div><b>Time of Event:</b> <span class="value" id="status_toe">'+this.timeOfEvent+'</span></div>';
 	data.left.content += '<div><b>State:</b> <span class="value" id="status_state">'+this.state+'</span></div>';
 	data.left.content += '<div><b>Type:</b> <span class="value" id="status_type">'+this.type+'</span></div><hr>';
 	for (var i in this.customProps) {
@@ -368,6 +371,24 @@ MapObject.prototype.update = function() {
 	var dispPos = Utils.geoToXY(this.geo.lon, this.geo.lat);
 	this.pos.x = dispPos.x;
 	this.pos.y = dispPos.y;
+
+	if (this.timeOfEvent != null) {
+		now = (new Date()).getTime();
+
+		if (now - this.timeOfEvent < 10000) {
+			if (this.activeEvent == false) {
+				console.log("ID: " + this.id + " TimeOfEvent: " + this.timeOfEvent)
+				this.addOverlay("Flat Tire Detected!", -1, "black", "rgba(255,255,255,0.9)");
+				this.activeEvent = true;
+			}
+		} else {
+			if (this.activeEvent == true) {
+				this.removeOverlay("Flat Tire Detected!");
+				this.activeEvent = false;
+				console.log("ID: " + this.id + " Event Expired")
+			}
+		}
+	}
 }
 
 MapObject.prototype.canSelect = function() {

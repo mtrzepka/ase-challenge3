@@ -11,7 +11,7 @@
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
- *   Bryan Boyd - Initial implementation 
+ *   Bryan Boyd - Initial implementation
  *******************************************************************************/
 
 function Place(name, options) {
@@ -52,30 +52,30 @@ Place.prototype.getCenter = function() {
 var Places = {
 	AUSTIN: new Place("Austin", {
 		center: {
-			lon: -97.74024, 
+			lon: -97.74024,
 			lat: 30.27455
-		}, 
+		},
 		defaultZoom: 15
 	}),
 	SANFRANCISCO: new Place("San Francisco", {
 		center: {
-			lon: -122.41581, 
+			lon: -122.41581,
 			lat: 37.77356
-		}, 
+		},
 		defaultZoom: 15
 	}),
 	VEGAS: new Place("Las Vegas", {
 		center: {
-			lon: -115.17295, 
+			lon: -115.17295,
 			lat: 36.11460
-		}, 
+		},
 		defaultZoom: 15
 	})
 }
 
 var defaults = {
 	locale: "en",
-	mapType: "osm", 
+	mapType: "osm",
 	mapLocation: Places.AUSTIN,
 }
 
