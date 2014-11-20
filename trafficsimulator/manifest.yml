@@ -1,0 +1,9 @@
+applications:
+- host: truck-monitor1
+  disk: 128M
+  name: truck-monitor1 
+  command: node app.js
+  path: .
+  domain: mybluemix.net
+  memory: 128M
+  instances: 10
